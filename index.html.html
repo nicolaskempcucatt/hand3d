@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Hand3D</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;800&display=swap" rel="stylesheet">
+<style>
+:root{color-scheme:dark;--bg:#090d14;--p1:#0f1520;--p2:#131b28;--ln:#1f2b3d;--ln2:#2c3d56;--tx:#e6eef8;--mt:#8a9bb2;--ac:#3fd8f5;--ac2:#0b4a5e;--ok:#4be3a0;--er:#ff6b7a}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--tx);font:400 14px/1.5 Manrope,system-ui,sans-serif;overflow:hidden;display:flex;flex-direction:column}
+header{height:58px;flex:none;background:var(--p1);border-bottom:1px solid var(--ln);display:flex;align-items:center;justify-content:space-between;gap:12px;padding:0 18px}
+.logo{font-weight:800;font-size:19px;letter-spacing:.3px}.logo b{color:var(--ac)}
+#chip{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--mt);background:var(--p2);border:1px solid var(--ln);border-radius:99px;padding:5px 14px;min-width:0}
+#chip i{width:8px;height:8px;border-radius:50%;background:var(--mt);flex:none}
+#chip.ok i{background:var(--ok)}#chip.err i{background:var(--er)}#chip.busy i{background:var(--ac)}
+#chip span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+button{font:inherit;color:var(--tx);background:var(--p2);border:1px solid var(--ln2);border-radius:9px;cursor:pointer;transition:border-color .15s,background .15s}
+button:hover:not(:disabled){border-color:var(--ac)}
+button:disabled{opacity:.4;cursor:not-allowed}
+button.active{background:var(--ac2);border-color:var(--ac)}
+:focus-visible{outline:2px solid var(--ac);outline-offset:2px}
+.primary{background:var(--ac);color:#04222b;border-color:var(--ac);font-weight:600;padding:8px 16px}
+.primary:hover:not(:disabled){background:#7be7fa}
+.primary.on{background:transparent;color:var(--tx);border-color:var(--ln2)}
+#app{flex:1;min-height:0;display:grid;grid-template-columns:64px 1fr 292px}
+.toolbar{background:var(--p1);border-right:1px solid var(--ln);display:flex;flex-direction:column;align-items:center;gap:6px;padding:12px 0}
+.tool{width:44px;height:42px;display:grid;place-items:center;font-size:11px;font-weight:600;padding:0}
+.tool svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.sep{width:28px;height:1px;background:var(--ln);margin:4px 0}
+#viewport{position:relative;min-width:0;overflow:hidden;touch-action:none}
+canvas#screen{width:100%;height:100%;display:block}
+#viewport.drop::after{content:"Solte o arquivo para importar";position:absolute;inset:12px;border:2px dashed var(--ac);border-radius:14px;display:grid;place-items:center;background:#09111dcc;font-size:18px;font-weight:600}
+#empty{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;text-align:center;pointer-events:none;padding:20px}
+#empty strong{font-size:22px;font-weight:600}
+#empty span{color:var(--mt);max-width:36ch}
+#empty button{pointer-events:auto;margin-top:10px}
+#cursor{position:absolute;left:0;top:0;width:26px;height:26px;margin:-13px 0 0 -13px;border:2px solid var(--ac);border-radius:50%;pointer-events:none;display:none;transition:background .12s,transform .12s}
+#cursor.pinch{background:var(--ac);transform:scale(.6)}
+#videoBox{position:absolute;right:14px;bottom:14px;width:200px;border:1px solid var(--ln2);border-radius:12px;overflow:hidden;background:var(--p1);display:none}
+#videoBox.on{display:block}
+.vw{position:relative;aspect-ratio:4/3;background:#000;transform:scaleX(-1)}
+.vw video,.vw canvas{position:absolute;inset:0;width:100%;height:100%}
+#videoLabel{font-size:12px;padding:6px 10px;color:var(--mt)}
+aside{background:var(--p1);border-left:1px solid var(--ln);padding:14px;overflow:auto}
+.panel{background:var(--bg);border:1px solid var(--ln);border-radius:12px;padding:14px;margin-bottom:12px}
+h3{margin:0 0 10px;font-size:13px;font-weight:800;color:var(--ac)}
+#objectName{font-weight:600;word-break:break-all}
+.small{font-size:12.5px;color:var(--mt);line-height:1.65}
+.row{display:flex;justify-content:space-between;margin:10px 0 4px;font-size:13px}
+.row output{font-variant-numeric:tabular-nums;color:var(--ac)}
+input[type=range]{width:100%;accent-color:var(--ac);margin:0}
+input[type=range]:disabled{opacity:.4}
+#gestureStatus{font-weight:600;margin-bottom:6px}
+kbd{font:600 11px Manrope,sans-serif;background:var(--p2);border:1px solid var(--ln2);border-radius:5px;padding:1px 6px;color:var(--tx)}
+#toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);background:var(--p2);border:1px solid var(--ln2);border-radius:10px;padding:10px 18px;font-size:13px;opacity:0;pointer-events:none;transition:opacity .2s;z-index:9;max-width:90vw}
+#toast.show{opacity:1}#toast.err{border-color:var(--er)}
+#file{display:none}
+@media(max-width:780px){
+ #app{grid-template-columns:1fr;grid-template-rows:1fr 52px}
+ .toolbar{order:2;flex-direction:row;justify-content:center;border-right:0;border-top:1px solid var(--ln);padding:0 6px;overflow-x:auto}
+ .sep{width:1px;height:26px;margin:0 4px}
+ aside{display:none}#videoBox{width:130px}#chip{display:none}
+}
+@media(prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+<script type="importmap">
+{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}
+</script>
+</head>
+<body>
+<header>
+ <div class="logo"><b>Hand</b>3D</div>
+ <div id="chip" role="status" aria-live="polite"><i></i><span id="status">Cena vazia</span></div>
+ <button class="primary" id="cameraButton">Ativar webcam</button>
+</header>
+
+<div id="app">
+<nav class="toolbar" aria-label="Ferramentas">
+ <button class="tool" id="import" title="Importar modelo (GLB, GLTF, STL, OBJ)" aria-label="Importar modelo"><svg viewBox="0 0 24 24"><path d="M12 16V4m0 0-4 4m4-4 4 4M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/></svg></button>
+ <button class="tool" id="exportGLB" title="Exportar GLB" aria-label="Exportar GLB">GLB</button>
+ <button class="tool" id="exportSTL" title="Exportar STL" aria-label="Exportar STL">STL</button>
+ <div class="sep"></div>
+ <button class="tool" id="wire" title="Wireframe (W)" aria-label="Alternar wireframe"><svg viewBox="0 0 24 24"><path d="M12 3l9 5v8l-9 5-9-5V8zM12 3v18M3 8l9 5 9-5"/></svg></button>
+ <button class="tool" id="reset" title="Resetar transformação (R)" aria-label="Resetar transformação"><svg viewBox="0 0 24 24"><path d="M4 12a8 8 0 1 0 3-6.2M4 4v4h4"/></svg></button>
+ <button class="tool" id="pause" title="Pausar gestos (Espaço)" aria-label="Pausar gestos"><svg viewBox="0 0 24 24"><path id="pauseIcon" d="M8 5v14M16 5v14"/></svg></button>
+ <div class="sep"></div>
+ <button class="tool" id="delete" title="Remover modelo (Delete)" aria-label="Remover modelo"><svg viewBox="0 0 24 24"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-12M9 7V4h6v3"/></svg></button>
+ <input id="file" type="file" accept=".glb,.gltf,.stl,.obj">
+</nav>
+
+<main id="viewport">
+ <canvas id="screen"></canvas>
+ <div id="empty">
+  <strong>Nenhum modelo carregado</strong>
+  <span>Arraste um arquivo GLB, GLTF, STL ou OBJ para cá, ou escolha um no computador.</span>
+  <button class="primary" id="import2">Importar modelo</button>
+ </div>
+ <div id="cursor"></div>
+ <div id="videoBox">
+  <div class="vw"><video id="video" autoplay muted playsinline></video><canvas id="skel"></canvas></div>
+  <div id="videoLabel">Webcam desligada</div>
+ </div>
+</main>
+
+<aside>
+ <div class="panel">
+  <h3>Objeto ativo</h3>
+  <div id="objectName">Nenhum modelo</div>
+  <div class="small" id="objectInfo">Aguardando importação.</div>
+ </div>
+ <div class="panel">
+  <h3>Gestos</h3>
+  <div id="gestureStatus">Webcam desligada</div>
+  <div class="small">Mão aberta: gira o modelo<br>Pinça: move em X, Y e Z<br>Duas mãos: muda a escala</div>
+ </div>
+ <div class="panel">
+  <h3>Transformação</h3>
+  <div class="row"><label for="x">Posição X</label><output id="vx">0.00</output></div>
+  <input id="x" type="range" min="-8" max="8" step=".01" value="0" disabled>
+  <div class="row"><label for="y">Posição Y</label><output id="vy">0.00</output></div>
+  <input id="y" type="range" min="-8" max="8" step=".01" value="0" disabled>
+  <div class="row"><label for="z">Posição Z</label><output id="vz">0.00</output></div>
+  <input id="z" type="range" min="-8" max="8" step=".01" value="0" disabled>
+  <div class="row"><label for="scale">Escala</label><output id="vs">1.00</output></div>
+  <input id="scale" type="range" min=".05" max="5" step=".01" value="1" disabled>
+ </div>
+ <div class="panel">
+  <h3>Sensibilidade</h3>
+  <div class="row"><label for="rotationSensitivity">Rotação</label><output id="rotationValue">1.0</output></div>
+  <input id="rotationSensitivity" type="range" min=".2" max="3" step=".1" value="1">
+  <div class="row"><label for="moveSensitivity">Movimento</label><output id="moveValue">1.0</output></div>
+  <input id="moveSensitivity" type="range" min=".2" max="3" step=".1" value="1">
+ </div>
+ <div class="panel">
+  <h3>Atalhos</h3>
+  <div class="small">
+   <kbd>Esc</kbd> desmarcar · <kbd>R</kbd> resetar<br>
+   <kbd>Espaço</kbd> pausar gestos · <kbd>W</kbd> wireframe<br>
+   <kbd>Delete</kbd> remover<br>
+   Mouse: arraste o modelo para mover, arraste o fundo para girar, use a roda para aproximar.
+  </div>
+ </div>
+</aside>
+</div>
+<div id="toast" role="alert"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+<script type="module">
+import * as THREE from "three";
+import {STLLoader} from "three/addons/loaders/STLLoader.js";
+import {OBJLoader} from "three/addons/loaders/OBJLoader.js";
+import {GLTFLoader} from "three/addons/loaders/GLTFLoader.js";
+import {GLTFExporter} from "three/addons/exporters/GLTFExporter.js";
+import {STLExporter} from "three/addons/exporters/STLExporter.js";
+import {RoomEnvironment} from "three/addons/environments/RoomEnvironment.js";
+
+const $=id=>document.getElementById(id);
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const viewport=$("viewport"),video=$("video"),skel=$("skel"),cursor=$("cursor");
+
+// ---------- Cena ----------
+const renderer=new THREE.WebGLRenderer({canvas:$("screen"),antialias:true,powerPreference:"high-performance"});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+renderer.outputColorSpace=THREE.SRGBColorSpace;
+renderer.toneMapping=THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure=1.05;
+
+const scene=new THREE.Scene();
+scene.background=new THREE.Color(0x090d14);
+scene.environment=new THREE.PMREMGenerator(renderer).fromScene(new RoomEnvironment(),.04).texture;
+
+const camera=new THREE.PerspectiveCamera(45,1,.1,1000);
+camera.position.set(0,0,12);
+
+const sun=new THREE.DirectionalLight(0xffffff,1.6);sun.position.set(-5,7,10);scene.add(sun);
+const rim=new THREE.PointLight(0x3fd8f5,25,30);rim.position.set(5,3,-4);scene.add(rim);
+
+const grid=new THREE.GridHelper(24,48,0x2a5670,0x16273a);
+grid.position.y=-2.8;
+grid.material.transparent=true;grid.material.opacity=.7;
+scene.add(grid);
+
+const box=new THREE.BoxHelper(new THREE.Object3D(),0x3fd8f5);
+box.visible=false;scene.add(box);
+
+const objects=[];
+let selected=null,wire=false,paused=false,handMode="none";
+
+function resize(){
+ const w=viewport.clientWidth,h=viewport.clientHeight;
+ if(!w||!h)return;
+ renderer.setSize(w,h,false);
+ camera.aspect=w/h;camera.updateProjectionMatrix();
+}
+new ResizeObserver(resize).observe(viewport);resize();
+
+// ---------- Interface ----------
+let toastTimer;
+function toast(msg,err){
+ const t=$("toast");t.textContent=msg;t.className="show"+(err?" err":"");
+ clearTimeout(toastTimer);toastTimer=setTimeout(()=>t.className="",3200);
+}
+function setStatus(text,kind=""){$("status").textContent=text;$("chip").className=kind}
+const setGesture=t=>$("gestureStatus").textContent=t;
+const setLabel=t=>$("videoLabel").textContent=t;
+
+function updateProperties(){
+ const on=!!selected;
+ for(const id of ["x","y","z","scale"])$(id).disabled=!on;
+ if(!on)return;
+ const p=selected.position;
+ for(const [id,v] of [["x",p.x],["y",p.y],["z",p.z],["scale",selected.scale.x]]){
+  $(id).value=v;
+  $(id==="scale"?"vs":"v"+id).textContent=v.toFixed(2);
+ }
+}
+function updateEmpty(){$("empty").style.display=objects.length?"none":"flex"}
+
+function setSelected(obj){
+ selected=obj;
+ box.visible=!!obj;
+ $("objectName").textContent=obj?obj.userData.name:"Nenhum modelo";
+ $("objectInfo").textContent=obj?obj.userData.info:"Aguardando importação.";
+ updateProperties();
+}
+
+// ---------- Importação ----------
+const mat=(wf=false)=>new THREE.MeshStandardMaterial({color:0x7fdcf0,metalness:.25,roughness:.4,wireframe:wf});
+
+async function importModel(file){
+ const ext=file.name.split(".").pop().toLowerCase();
+ if(!["glb","gltf","stl","obj"].includes(ext)){toast("Formato não suportado. Use GLB, GLTF, STL ou OBJ.",true);return}
+ setStatus("Carregando modelo…","busy");
+ const url=URL.createObjectURL(file);
+ try{
+  let root;
+  if(ext==="stl"){
+   const g=await new STLLoader().loadAsync(url);g.computeVertexNormals();
+   root=new THREE.Mesh(g,mat());
+  }else if(ext==="obj"){
+   root=await new OBJLoader().loadAsync(url);
+   root.traverse(o=>{if(o.isMesh)o.material=mat()});
+  }else root=(await new GLTFLoader().loadAsync(url)).scene;
+
+  const b=new THREE.Box3().setFromObject(root);
+  const size=b.getSize(new THREE.Vector3()),c=b.getCenter(new THREE.Vector3());
+  if(!isFinite(size.x)||!Math.max(size.x,size.y,size.z))throw new Error("O arquivo não contém geometria visível.");
+  root.position.sub(c);
+  const inner=new THREE.Group();inner.add(root);
+  inner.scale.setScalar(3/Math.max(size.x,size.y,size.z));
+  const model=new THREE.Group();model.add(inner);
+
+  let tris=0;
+  model.traverse(o=>{if(o.isMesh){
+   const g=o.geometry;tris+=(g.index?g.index.count:g.attributes.position.count)/3;
+   o.material=Array.isArray(o.material)?o.material:o.material||mat();
+   for(const m of [].concat(o.material))m.wireframe=wire;
+  }});
+  model.userData.name=file.name;
+  model.userData.info=`${Math.round(tris).toLocaleString("pt-BR")} triângulos · ${size.x.toFixed(1)} × ${size.y.toFixed(1)} × ${size.z.toFixed(1)}`;
+  scene.add(model);objects.push(model);
+  setSelected(model);updateEmpty();
+  setStatus("Modelo pronto","ok");
+ }catch(e){
+  console.error(e);setStatus("Erro na importação","err");
+  toast("Não foi possível abrir o modelo: "+e.message,true);
+ }finally{URL.revokeObjectURL(url)}
+}
+
+function removeSelected(){
+ if(!selected)return;
+ const m=selected;
+ scene.remove(m);objects.splice(objects.indexOf(m),1);
+ m.traverse(o=>{if(o.isMesh){o.geometry.dispose();for(const x of [].concat(o.material))x.dispose()}});
+ setSelected(objects[objects.length-1]||null);
+ updateEmpty();setStatus(objects.length?"Modelo removido":"Cena vazia");
+}
+
+// ---------- Mãos ----------
+const D=(a,b)=>Math.hypot((a.x-b.x)*(video.videoWidth/video.videoHeight||4/3),a.y-b.y);
+const ext=(l,t,p)=>D(l[0],l[t])>D(l[0],l[p])*1.12;
+const isOpen=l=>ext(l,8,6)&&ext(l,12,10)&&ext(l,16,14)&&ext(l,20,18);
+
+const sm={x:0,y:0,p:0,init:false};
+function smooth(x,y,p){
+ if(!sm.init){sm.x=x;sm.y=y;sm.p=p;sm.init=true;return}
+ const a=clamp(.18+Math.hypot(x-sm.x,y-sm.y)*9,.18,.7);
+ sm.x+=(x-sm.x)*a;sm.y+=(y-sm.y)*a;sm.p+=(p-sm.p)*.2;
+}
+
+let sensR=1,sensM=1,pinching=false,pinchO=null,prev=null,two=null,lastSeen=0;
+const qx=new THREE.Quaternion(),qy=new THREE.Quaternion();
+const AX=new THREE.Vector3(1,0,0),AY=new THREE.Vector3(0,1,0);
+
+function releaseAll(){pinching=false;pinchO=null;prev=null;two=null;sm.init=false;cursor.style.display="none";cursor.classList.remove("pinch")}
+
+function drawSkeleton(all){
+ const w=skel.width=video.videoWidth||480,h=skel.height=video.videoHeight||360;
+ const ctx=skel.getContext("2d");ctx.clearRect(0,0,w,h);
+ ctx.strokeStyle="#3fd8f5";ctx.fillStyle="#fff";ctx.lineWidth=2;
+ for(const l of all){
+  for(const [a,b] of window.HAND_CONNECTIONS||[]){
+   ctx.beginPath();ctx.moveTo(l[a].x*w,l[a].y*h);ctx.lineTo(l[b].x*w,l[b].y*h);ctx.stroke();
+  }
+  for(const p of l){ctx.beginPath();ctx.arc(p.x*w,p.y*h,2.5,0,7);ctx.fill()}
+ }
+}
+
+function processHands(res){
+ const all=res.multiHandLandmarks||[];
+ skel.getContext("2d").clearRect(0,0,skel.width,skel.height);
+ if(paused)return;
+
+ if(!all.length){
+  if(performance.now()-lastSeen>400){
+   handMode="none";releaseAll();
+   setGesture("Mão não detectada");setLabel("Procurando mão");
+  }
+  return;
+ }
+ lastSeen=performance.now();
+ drawSkeleton(all);
+ setLabel("Rastreamento ativo");
+
+ // Duas mãos: escala
+ if(all.length>=2){
+  const d=D(all[0][9],all[1][9]);
+  pinching=false;pinchO=null;prev=null;cursor.style.display="none";
+  if(!two)two={d,s:selected?selected.scale.x:1};
+  if(selected){selected.scale.setScalar(clamp(two.s*d/two.d,.05,5));updateProperties()}
+  handMode="scale";setGesture("Duas mãos: escala");
+  return;
+ }
+ two=null;
+
+ const l=all[0],tip=l[8],th=l[4];
+ const palm=D(l[0],l[9])||.1;
+ smooth(1-(tip.x+th.x)/2,(tip.y+th.y)/2,palm);
+
+ // cursor na tela
+ cursor.style.display="block";
+ cursor.style.transform=`translate(${sm.x*viewport.clientWidth}px,${sm.y*viewport.clientHeight}px)`;
+
+ // pinça com histerese, relativa ao tamanho da mão
+ const r=D(th,tip)/palm;
+ pinching=pinching?r<.45:r<.28;
+ cursor.classList.toggle("pinch",pinching);
+
+ if(pinching){
+  if(!pinchO&&selected)pinchO={x:sm.x,y:sm.y,p:sm.p,pos:selected.position.clone()};
+  if(selected&&pinchO){
+   const P=selected.position,o=pinchO.pos;
+   P.x=clamp(o.x+(sm.x-pinchO.x)*10*sensM,-8,8);
+   P.y=clamp(o.y+(pinchO.y-sm.y)*7.5*sensM,-8,8);
+   P.z=clamp(o.z+(sm.p/pinchO.p-1)*8*sensM,-8,8);
+   updateProperties();
+  }
+  handMode="move";prev=null;setGesture("Pinça: movendo em X, Y e Z");
+  return;
+ }
+ pinchO=null;
+
+ if(selected&&isOpen(l)){
+  if(prev){
+   const dx=sm.x-prev.x,dy=sm.y-prev.y;
+   qy.setFromAxisAngle(AY,Math.abs(dx)>.002?dx*6*sensR:0);
+   qx.setFromAxisAngle(AX,Math.abs(dy)>.002?dy*6*sensR:0);
+   selected.quaternion.premultiply(qy).premultiply(qx);
+  }
+  prev={x:sm.x,y:sm.y};
+  handMode="rotate";setGesture("Mão aberta: girando");
+ }else{
+  prev=null;handMode="idle";
+  setGesture(selected?"Mão em repouso":"Importe um modelo");
+ }
+}
+
+// ---------- Webcam ----------
+let hands=null,webcam=null,stream=null;
+
+async function startCamera(){
+ const btn=$("cameraButton");btn.disabled=true;
+ try{
+  setStatus("Abrindo webcam…","busy");
+  if(!window.Hands)throw new Error("MediaPipe não carregou. Verifique a conexão.");
+  stream=await navigator.mediaDevices.getUserMedia({video:{width:640,height:480,facingMode:"user"},audio:false});
+  video.srcObject=stream;await video.play();
+  $("videoBox").classList.add("on");
+
+  hands=new window.Hands({locateFile:f=>"https://cdn.jsdelivr.net/npm/@mediapipe/hands/"+f});
+  hands.setOptions({maxNumHands:2,modelComplexity:1,minDetectionConfidence:.7,minTrackingConfidence:.6});
+  hands.onResults(processHands);
+
+  let busy=false;
+  webcam=new window.Camera(video,{width:640,height:480,onFrame:async()=>{
+   if(busy)return;busy=true;
+   try{await hands.send({image:video})}finally{busy=false}
+  }});
+  await webcam.start();
+  btn.textContent="Desativar webcam";btn.classList.add("on");
+  setStatus("Webcam conectada","ok");setGesture("Procurando mão");setLabel("Procurando mão");
+ }catch(e){
+  console.error(e);stopCamera(true);
+  setStatus("Erro na webcam","err");
+  toast(e.name==="NotAllowedError"?"Permissão da webcam negada. Libere o acesso no navegador.":e.message,true);
+ }finally{btn.disabled=false}
+}
+
+function stopCamera(silent){
+ try{webcam&&webcam.stop()}catch{}
+ try{hands&&hands.close()}catch{}
+ stream&&stream.getTracks().forEach(t=>t.stop());
+ webcam=hands=stream=null;video.srcObject=null;
+ releaseAll();handMode="none";
+ $("videoBox").classList.remove("on");
+ const b=$("cameraButton");b.textContent="Ativar webcam";b.classList.remove("on");
+ setGesture("Webcam desligada");setLabel("Webcam desligada");
+ if(!silent)setStatus(objects.length?"Webcam desligada":"Cena vazia");
+}
+
+// ---------- Exportação ----------
+function download(blob,name){
+ const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=name;a.click();
+ setTimeout(()=>URL.revokeObjectURL(a.href),2000);
+}
+function exportGLB(){
+ if(!objects.length)return toast("Não há modelo para exportar.",true);
+ const s=new THREE.Scene();objects.forEach(o=>s.add(o.clone(true)));
+ new GLTFExporter().parse(s,r=>{download(new Blob([r],{type:"model/gltf-binary"}),"hand3d_modelo.glb");toast("GLB exportado.")},
+  e=>{console.error(e);toast("Erro ao exportar GLB.",true)},{binary:true});
+}
+function exportSTL(){
+ if(!selected)return toast("Selecione um modelo para exportar.",true);
+ selected.updateMatrixWorld(true);
+ download(new Blob([new STLExporter().parse(selected,{binary:true})],{type:"application/octet-stream"}),"hand3d_modelo.stl");
+ toast("STL exportado.");
+}
+
+// ---------- Controles ----------
+for(const id of ["x","y","z","scale"])$(id).addEventListener("input",e=>{
+ if(!selected)return;
+ const v=+e.target.value;
+ if(id==="scale")selected.scale.setScalar(v);else selected.position[id]=v;
+ updateProperties();
+});
+$("rotationSensitivity").oninput=e=>{sensR=+e.target.value;$("rotationValue").textContent=sensR.toFixed(1)};
+$("moveSensitivity").oninput=e=>{sensM=+e.target.value;$("moveValue").textContent=sensM.toFixed(1)};
+
+$("cameraButton").onclick=()=>stream?stopCamera():startCamera();
+$("import").onclick=$("import2").onclick=()=>$("file").click();
+$("file").onchange=e=>{[...e.target.files].forEach(importModel);e.target.value=""};
+$("exportGLB").onclick=exportGLB;$("exportSTL").onclick=exportSTL;
+$("delete").onclick=removeSelected;
+
+$("reset").onclick=()=>{
+ if(!selected)return;
+ selected.position.set(0,0,0);selected.quaternion.identity();selected.scale.setScalar(1);
+ updateProperties();
+};
+$("wire").onclick=()=>{
+ wire=!wire;$("wire").classList.toggle("active",wire);
+ objects.forEach(m=>m.traverse(o=>{if(o.isMesh)for(const x of [].concat(o.material))x.wireframe=wire}));
+};
+$("pause").onclick=()=>{
+ paused=!paused;
+ $("pause").classList.toggle("active",paused);
+ $("pauseIcon").setAttribute("d",paused?"M7 5l12 7-12 7z":"M8 5v14M16 5v14");
+ if(paused){releaseAll();setGesture("Gestos pausados")}else setGesture(stream?"Procurando mão":"Webcam desligada");
+};
+
+addEventListener("keydown",e=>{
+ if(e.target.tagName==="BUTTON"&&e.code==="Space")return;
+ const k=e.key.toLowerCase();
+ if(e.code==="Space"){e.preventDefault();$("pause").click()}
+ else if(k==="r")$("reset").click();
+ else if(k==="w")$("wire").click();
+ else if(k==="delete")removeSelected();
+ else if(k==="escape"){releaseAll();setSelected(null)}
+});
+
+// ---------- Mouse ----------
+const ray=new THREE.Raycaster(),ptr=new THREE.Vector2(),plane=new THREE.Plane(),hit=new THREE.Vector3(),off=new THREE.Vector3();
+let drag=null;
+function aim(e){
+ const r=viewport.getBoundingClientRect();
+ ptr.set(((e.clientX-r.left)/r.width)*2-1,-((e.clientY-r.top)/r.height)*2+1);
+ ray.setFromCamera(ptr,camera);
+}
+viewport.addEventListener("pointerdown",e=>{
+ if(e.target.closest("#videoBox,#empty button")||(handMode!=="none"&&handMode!=="idle"))return;
+ aim(e);
+ const h=ray.intersectObjects(objects,true)[0];
+ if(h&&e.button===0){
+  let o=h.object;while(o.parent&&o.parent!==scene)o=o.parent;
+  setSelected(o);
+  plane.setFromNormalAndCoplanarPoint(new THREE.Vector3(0,0,1),selected.position);
+  ray.ray.intersectPlane(plane,hit);off.copy(selected.position).sub(hit);
+  drag={mode:"move"};
+ }else drag={mode:"rotate",x:e.clientX,y:e.clientY};
+ viewport.setPointerCapture(e.pointerId);
+});
+viewport.addEventListener("pointermove",e=>{
+ if(!drag||!selected)return;
+ if(drag.mode==="move"){
+  aim(e);
+  if(ray.ray.intersectPlane(plane,hit)){selected.position.copy(hit.add(off));updateProperties()}
+ }else{
+  qy.setFromAxisAngle(AY,(e.clientX-drag.x)*.008);qx.setFromAxisAngle(AX,(e.clientY-drag.y)*.008);
+  selected.quaternion.premultiply(qy).premultiply(qx);
+  drag.x=e.clientX;drag.y=e.clientY;
+ }
+});
+const endDrag=()=>drag=null;
+viewport.addEventListener("pointerup",endDrag);
+viewport.addEventListener("pointercancel",endDrag);
+viewport.addEventListener("wheel",e=>{
+ e.preventDefault();
+ camera.position.z=clamp(camera.position.z*(1+e.deltaY*.001),5,30);
+},{passive:false});
+
+// Arrastar e soltar arquivos
+viewport.addEventListener("dragover",e=>{e.preventDefault();viewport.classList.add("drop")});
+viewport.addEventListener("dragleave",()=>viewport.classList.remove("drop"));
+viewport.addEventListener("drop",e=>{
+ e.preventDefault();viewport.classList.remove("drop");
+ [...e.dataTransfer.files].forEach(importModel);
+});
+
+// ---------- Loop ----------
+updateEmpty();updateProperties();
+renderer.setAnimationLoop(()=>{
+ if(selected)box.setFromObject(selected);
+ renderer.render(scene,camera);
+});
+</script>
+</body>
+</html>
